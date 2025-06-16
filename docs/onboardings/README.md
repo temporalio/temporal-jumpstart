@@ -6,5 +6,5 @@ based on the foundations.
 
 NOTE that right now the various languages are in different degrees of implementing the requirements.
 
-The [Product Requirements Document (and embedded Technical Requirements)[onboardings-prd.pdf] should be consulted
+The [Product Requirements Document (and embedded Technical Requirements)](onboardings-prd.pdf) should be consulted
 to understand the `onboardings` reference application.

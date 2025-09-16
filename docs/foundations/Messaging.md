@@ -1,4 +1,43 @@
-# 📘 Protobuf Versioning: Best Practices and Pitfalls
+# Messaging
+
+Temporal advances state by passing messages through your system. 
+This elevates the importance of an intentional Message strategy in your system.
+
+Regardless of what you choose to use, _at least_ the following should be considered:
+### Serialization Compatibility
+This becomes vital in organizations that embrace polyglot development.
+If you are using common language structures, each likely has their own peculiarities for
+serialization to JSON, for example; snake case vs camel case vs pascal case, etc.
+
+### Schema Evolution
+Workflows are inherently "long-lived" (even for a few minutes), so shipped changes to schema
+can disrupt `Open` workflow executions with serialization errors in the DataConverter.
+
+Prefer _additive_ schema changes over _breaking_ changes with your messages. 
+
+For example, if you have a `User` message, you can add a `User.is_active` field without breaking
+existing workflows. But if you want to _rename_ that field to `is_currently_active` you should _add_ that
+field and deprecate the old one when deemed safe. Tolerate some duplication for the sake of safety.
+
+### Schema Versioning
+You should be able to evolve your schema without major version bumps, but sometimes it is easier to 
+bump the version of your entire API. 
+Pay attention to the DataConverter being used in your Temporal SDK Client
+
+If you need to support new versions of your schema (eg, the "type" of the message object) in your Temporal orchestration signatures but
+do not want to version your Workflows to support them, you might consider a [Custom Data Converter](https://docs.temporal.io/default-custom-data-converters#custom-data-converter)
+to upgrade messages during the deserialization process.
+
+## Serialization Frameworks
+
+You might consider using a serialization framework like [Protobuf](https://protobuf.dev/) or [Avro](https://avro.apache.org/)
+to define your messages. These can be a logical choice if you expect, or have experienced,
+complexity with [Schema Evolution](#schema-evolution) or [Schema Versioning](#schema-versioning).
+[Serialization Compatibility](#serialization-compatibility) can also be aided by serialization framework standardization.
+
+Below are some best practices for Protobuf serialization.
+
+## 📘 Protobuf Versioning: Best Practices and Pitfalls
 
 Protobuf is designed to let schemas evolve gradually, without requiring a full API version bump every time something changes.  
 Still, for major or incompatible changes, coarse-grained API versioning remains a common and recommended practice.  
@@ -8,7 +47,7 @@ When done carefully, this allows old and new services to communicate seamlessly 
 
 ---
 
-## ✅ Non-Breaking Changes
+### ✅ Non-Breaking Changes
 
 Most schema evolution in Protobuf can be done without breaking compatibility, as long as you follow strict rules.
 
@@ -21,7 +60,7 @@ Most schema evolution in Protobuf can be done without breaking compatibility, as
 
 ---
 
-## ❌ Breaking Changes
+### ❌ Breaking Changes
 
 Some schema edits are inherently breaking because they change how the data is represented on the wire:
 
@@ -31,17 +70,17 @@ Some schema edits are inherently breaking because they change how the data is re
 
 When breaking changes are unavoidable, you have two main strategies:
 
-### 1️⃣ Introduce a new message type
+#### 1️⃣ Introduce a new message type
 Define a new message (e.g., `UserV2`) and migrate gradually. Old and new services can explicitly agree on which version they support.
 
-### 2️⃣ Coarse-grained API versioning
+#### 2️⃣ Coarse-grained API versioning
 For larger, structural changes across many messages, version entire namespaces (e.g., `package my.api.v1`, `package my.api.v2`).  
 This provides a clean break while letting old clients coexist.  
 *Example: Envoy Proxy’s migration from v2 to v3.*
 
 ---
 
-## 📦 Language-Specific Library Versions
+### 📦 Language-Specific Library Versions
 
 Schema versioning is separate from the versioning of **language-specific Protobuf libraries**.  
 The schema compatibility rules above are universal, but each language’s library evolves on its own schedule.
@@ -50,7 +89,7 @@ Example: In 2022, the **Python Protobuf API** introduced breaking changes and mo
 
 ---
 
-## 📊 Quick Reference: Safe vs. Risky vs. Breaking
+### 📊 Quick Reference: Safe vs. Risky vs. Breaking
 
 | Category          | Safe ✅                | Risky ⚠️                                      | Breaking ❌                                   |
 |-------------------|------------------------|-----------------------------------------------|-----------------------------------------------|
@@ -60,7 +99,7 @@ Example: In 2022, the **Python Protobuf API** introduced breaking changes and mo
 
 ---
 
-## 🔑 Key Takeaways
+### 🔑 Key Takeaways
 
 - ✅ Safe: add fields, deprecate fields, reserve numbers when removing.
 - ⚠️ Risky: renaming and removing fields unless you’re certain they’re unused.

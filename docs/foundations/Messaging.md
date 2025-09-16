@@ -35,6 +35,12 @@ to define your messages. These can be a logical choice if you expect, or have ex
 complexity with [Schema Evolution](#schema-evolution) or [Schema Versioning](#schema-versioning).
 [Serialization Compatibility](#serialization-compatibility) can also be aided by serialization framework standardization.
 
+### Resources
+
+Here are some comparisons of serialization frameworks to help think through options:
+* [Event sourcing serialization strategy](https://blog.softwaremill.com/the-best-serialization-strategy-for-event-sourcing-9321c299632b)
+* [Avro versus Protobufs](https://softwaremill.com/data-serialization-tools-comparison-avro-vs-protobuf/)
+
 Below are some best practices for Protobuf serialization.
 
 ## 📘 Protobuf Versioning: Best Practices and Pitfalls

@@ -19,16 +19,15 @@ You can avoid this by:
 
 #### Recommendations
 
+Read [Messaging](Messaging.md) to understand the maintenance requirements to consider
+for your message contracts. Regardless of your choice of message strategy, here are some general recommendations:
+
 * Prefer keeping your messages in a discrete package that is versioned independently. 
   * This makes it easier to detect changes to the contracts impacting your Workflow Executions.
 * Prefer an evolutionary, additive approach to message changes. 
   * For example, instead of _changing_ a property name prefer _adding_ the new name you want to use and keep the other around until you can deprecate it safely.
 * Always use Replay tests to verify your current message schema is compatible with currently open Workflow Executions.
 
-##### Resources
-
-* Compare [Avro versus Protobufs](https://blog.softwaremill.com/the-best-serialization-strategy-for-event-sourcing-9321c299632b)
-* Compare [Avro versus Protobufs](https://softwaremill.com/data-serialization-tools-comparison-avro-vs-protobuf/)
 
 ## Workflow Versioning
 

@@ -8,13 +8,41 @@
 - Discuss Best Practices
 - Run the Worker with our Workflow and Activity registered
 
-## Task Fundamentals
+## The Temporal SDK Worker
 
-![Task fundamentals](task.png)
+Effective Temporal Applications require an understanding of these key Worker-related concepts and facilities:
 
-## Worker Fundamentals
+* The Task
+* Task Queues and Sticky Queues
+* Task Pollers and Task Handlers
+* Task Routing : Fairness & Prioritization
+* Worker Versioning
+* Workflow Execution Cache
 
-![Worker fundamentals](worker.png)
+## The Humble Task
+
+_Be well acquainted with Task details described [here](https://docs.temporal.io/tasks)._
+
+The **Task** is an execution instruction that carries the context and payload necessary 
+for the Worker to advance a Workflow Execution. 
+
+> A **Query Task** is a special type of Task
+which never appears in history, but is _handled_ by the Worker to compute a result.
+
+![Task fundamentals](task_lifecycle_complete_400.jpeg)
+
+## Essential Worker Components
+
+_The inner workings of the Temporal SDK Worker are covered [here](https://docs.temporal.io/workers)._
+
+![Worker fundamentals](worker_components_400.jpeg)
+
+## Worker <> Task Queue Interactions
+
+_Task Queues interactions are described [here](https://docs.temporal.io/task-queue)._
+
+![Key Interactions](worker_interactions_580.jpeg)
+
 
 ## Best Practices
 

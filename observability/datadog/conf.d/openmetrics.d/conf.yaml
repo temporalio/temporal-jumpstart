@@ -1,0 +1,104 @@
+## OpenMetrics Configuration for Temporal .NET SDK metrics
+## Based on: https://github.com/temporalio/dashboards/blob/master/sdk/datadog/openmetrics.h_conf.yaml
+## This configuration converts Prometheus histogram buckets to DataDog distributions for percentile calculations
+##
+## To add multiple worker endpoints, simply add more instances below
+## Example for 3 workers on ports 9464, 9465, 9466
+
+init_config:
+
+instances:
+  # Worker 1 - Primary worker
+  - openmetrics_endpoint: http://host.docker.internal:9464/metrics
+    tags:
+      - "service:temporal-worker"
+      - "env:local"
+      - "sdk:dotnet"
+      - "worker_instance:worker-1"
+
+    metrics:
+      - "temporal_*"
+
+    # KEY: Convert histogram buckets to distributions
+    # This enables p50, p75, p95, p99 percentiles in DataDog
+    histogram_buckets_as_distributions: true
+    collect_histogram_buckets: true
+    send_distribution_buckets: true
+    send_distribution_counts_as_monotonic: true
+    send_histograms_buckets: false
+
+    # Include all relevant labels for filtering and grouping
+    include_labels:
+      - "le"                  # REQUIRED for bucket conversion
+      - "namespace"
+      - "operation"
+      - "workflow_type"
+      - "activity_type"
+      - "task_queue"
+      - "worker_type"
+      - "service_name"
+      - "error_type"
+      - "poller_type"
+      - "failure_reason"
+
+    # Exclude unnecessary labels
+    exclude_labels:
+      - "job"
+      - "instance"
+      - "__name__"
+
+    timeout: 30
+    min_collection_interval: 15
+
+  # Worker 2 - Uncomment and modify to add a second worker
+  # - openmetrics_endpoint: http://host.docker.internal:9465/metrics
+  #   tags:
+  #     - "service:temporal-worker"
+  #     - "env:local"
+  #     - "sdk:dotnet"
+  #     - "worker_instance:worker-2"
+  #
+  #   metrics:
+  #     - "temporal_*"
+  #
+  #   histogram_buckets_as_distributions: true
+  #   collect_histogram_buckets: true
+  #   send_distribution_buckets: true
+  #   send_distribution_counts_as_monotonic: true
+  #   send_histograms_buckets: false
+  #
+  #   include_labels:
+  #     - "le"
+  #     - "namespace"
+  #     - "operation"
+  #     - "workflow_type"
+  #     - "activity_type"
+  #     - "task_queue"
+  #     - "worker_type"
+  #     - "service_name"
+  #     - "error_type"
+  #     - "poller_type"
+  #     - "failure_reason"
+  #
+  #   exclude_labels:
+  #     - "job"
+  #     - "instance"
+  #     - "__name__"
+  #
+  #   timeout: 30
+  #   min_collection_interval: 15
+
+  # Worker 3 - Uncomment and modify to add a third worker
+  # - openmetrics_endpoint: http://host.docker.internal:9466/metrics
+  #   tags:
+  #     - "service:temporal-worker"
+  #     - "env:local"
+  #     - "sdk:dotnet"
+  #     - "worker_instance:worker-3"
+  #   ...
+  # (copy the same configuration as above)
+
+# After metrics start flowing to DataDog, enable percentiles:
+# 1. Visit https://app.datadoghq.com/metric/summary
+# 2. Search for temporal_request_latency, temporal_workflow_endtoend_latency, etc.
+# 3. Click on each metric → Advanced → Percentiles → Configure → Enable p50, p75, p95, p99

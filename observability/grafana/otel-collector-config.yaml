@@ -1,0 +1,84 @@
+# OpenTelemetry Collector Configuration for GrafanaCloud
+# This collector scrapes Prometheus metrics from Temporal .NET SDK and forwards to GrafanaCloud
+
+receivers:
+  # Scrape Prometheus metrics from the Temporal .NET worker(s)
+  # To add more workers, add additional targets below
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'temporal-dotnet-worker'
+          scrape_interval: 15s
+          static_configs:
+            # Worker 1 - Primary worker on port 9464
+            - targets: ['host.docker.internal:9464']
+              labels:
+                service: 'temporal-worker'
+                environment: 'local'
+                worker_instance: 'worker-1'
+            # Worker 2 - Uncomment to add a second worker
+            # - targets: ['host.docker.internal:9465']
+            #   labels:
+            #     service: 'temporal-worker'
+            #     environment: 'local'
+            #     worker_instance: 'worker-2'
+            # Worker 3 - Uncomment to add a third worker
+            # - targets: ['host.docker.internal:9466']
+            #   labels:
+            #     service: 'temporal-worker'
+            #     environment: 'local'
+            #     worker_instance: 'worker-3'
+
+processors:
+  # Add batch processing to reduce network calls
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  # Add resource attributes for better filtering in Grafana
+  resource:
+    attributes:
+      - key: service.name
+        value: temporal-jumpstart-dotnet
+        action: upsert
+      - key: deployment.environment
+        from_attribute: environment
+        action: upsert
+
+extensions:
+  # Configure Basic Auth for GrafanaCloud
+  basicauth/grafana:
+    client_auth:
+      username: ${GRAFANA_CLOUD_USERNAME}
+      password: ${GRAFANA_CLOUD_PASSWORD}
+
+exporters:
+  # Send to GrafanaCloud using Prometheus Remote Write
+  prometheusremotewrite:
+    endpoint: ${GRAFANA_CLOUD_PROMETHEUS_ENDPOINT}
+    # GrafanaCloud uses Basic Auth with username:password format
+    auth:
+      authenticator: basicauth/grafana
+    # Optional: adjust timeout and retry settings
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # Optional: also export to local console for debugging
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+service:
+  extensions: [basicauth/grafana]
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      processors: [batch, resource]
+      exporters: [prometheusremotewrite]
+      # Uncomment to also log metrics for debugging:
+      # exporters: [prometheusremotewrite, debug]

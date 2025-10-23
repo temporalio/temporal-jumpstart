@@ -1,0 +1,128 @@
+services:
+  # OpenTelemetry Collector for Grafana Cloud only
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector-cloud
+    command:
+      - "--config=/etc/otel-collector-config.yaml"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics for the collector itself
+      - "13133:13133" # Health check endpoint
+    environment:
+      - GRAFANA_CLOUD_PROMETHEUS_ENDPOINT=${GRAFANA_CLOUD_PROMETHEUS_ENDPOINT}
+      - GRAFANA_CLOUD_USERNAME=${GRAFANA_CLOUD_USERNAME}
+      - GRAFANA_CLOUD_PASSWORD=${GRAFANA_CLOUD_PASSWORD}
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - otel-network
+    profiles:
+      - cloud
+
+  # OpenTelemetry Collector for Local Prometheus only
+  otel-collector-local:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector-local
+    command:
+      - "--config=/etc/otel-collector-config-local.yaml"
+    volumes:
+      - ./otel-collector-config-local.yaml:/etc/otel-collector-config-local.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics for the collector itself
+      - "13133:13133" # Health check endpoint
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - otel-network
+    profiles:
+      - local
+    depends_on:
+      - prometheus
+
+  # OpenTelemetry Collector for Both Local and Cloud
+  otel-collector-both:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector-both
+    command:
+      - "--config=/etc/otel-collector-config-both.yaml"
+    volumes:
+      - ./otel-collector-config-both.yaml:/etc/otel-collector-config-both.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Prometheus metrics for the collector itself
+      - "13133:13133" # Health check endpoint
+    environment:
+      - GRAFANA_CLOUD_PROMETHEUS_ENDPOINT=${GRAFANA_CLOUD_PROMETHEUS_ENDPOINT}
+      - GRAFANA_CLOUD_USERNAME=${GRAFANA_CLOUD_USERNAME}
+      - GRAFANA_CLOUD_PASSWORD=${GRAFANA_CLOUD_PASSWORD}
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - otel-network
+    profiles:
+      - both
+    depends_on:
+      - prometheus
+
+  # Local Prometheus - only runs with 'local' or 'both' profiles
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-local
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
+    volumes:
+      - ./prometheus-local.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - otel-network
+    profiles:
+      - local
+      - both
+
+  # Local Grafana - only runs with 'local' or 'both' profiles
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-local
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - otel-network
+    profiles:
+      - local
+      - both
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  otel-network:
+    driver: bridge

@@ -1,0 +1,52 @@
+services:
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:latest
+    container_name: datadog-agent
+    environment:
+      # Required: Your DataDog API key
+      - DD_API_KEY=${DD_API_KEY}
+      # Optional: DataDog site (default: datadoghq.com)
+      # EU: datadoghq.eu, US3: us3.datadoghq.com, US5: us5.datadoghq.com
+      - DD_SITE=${DD_SITE:-datadoghq.com}
+      # Enable Prometheus metric collection
+      - DD_PROMETHEUS_SCRAPE_ENABLED=true
+      - DD_PROMETHEUS_SCRAPE_SERVICE_ENDPOINTS=true
+      # Enable logs collection (optional)
+      - DD_LOGS_ENABLED=${DD_LOGS_ENABLED:-false}
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=${DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL:-false}
+      # Enable APM (optional)
+      - DD_APM_ENABLED=${DD_APM_ENABLED:-false}
+      # Container monitoring
+      - DD_CONTAINER_EXCLUDE="name:datadog-agent"
+      # Hostname
+      - DD_HOSTNAME=${DD_HOSTNAME:-temporal-worker-local}
+      # Tags for organizing metrics
+      - DD_TAGS=${DD_TAGS:-env:local service:temporal-worker}
+    volumes:
+      # Mount the DataDog agent configuration
+      - ./datadog.yaml:/etc/datadog-agent/datadog.yaml:ro
+      # Mount the Prometheus check configuration
+      - ./conf.d:/etc/datadog-agent/conf.d:ro
+      # Docker socket for container monitoring
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      # Logs (if enabled)
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    ports:
+      # DogStatsD
+      - "8125:8125/udp"
+      # APM trace agent
+      - "8126:8126/tcp"
+      # DataDog agent API
+      - "5002:5002/tcp"
+    restart: unless-stopped
+    extra_hosts:
+      # Allow agent to reach services on host machine
+      - "host.docker.internal:host-gateway"
+    networks:
+      - datadog-network
+
+networks:
+  datadog-network:
+    driver: bridge

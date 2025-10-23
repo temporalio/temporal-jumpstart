@@ -1,0 +1,10 @@
+## DataDog Agent Configuration
+## This is a minimal configuration. The agent will use environment variables from docker-compose.yaml
+
+# Logging
+log_level: info
+
+# Enable Prometheus metric collection
+prometheus_scrape:
+  enabled: true
+  version: 2

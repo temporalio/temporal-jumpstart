@@ -1,6 +1,6 @@
 # Grafana Observability Setup
 
-This guide walks you through setting up the OpenTelemetry Collector to forward Temporal .NET metrics to either:
+This guide walks you through setting up the OpenTelemetry Collector to forward Temporal SDK metrics to either:
 - **Local Grafana** (runs in Docker, no cloud account needed)
 - **Grafana Cloud** (managed service, free tier available)
 - **Both** (send metrics to local and cloud simultaneously)
@@ -8,7 +8,7 @@ This guide walks you through setting up the OpenTelemetry Collector to forward T
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Your Temporal .NET worker running and exposing Prometheus metrics (port 9464)
+- Your Temporal SDK Worker running and exposing Prometheus metrics (port 9464)
 - (Optional) A GrafanaCloud account for cloud monitoring (https://grafana.com/products/cloud/)
 
 ## Quick Start
@@ -23,9 +23,8 @@ No credentials needed! Just run:
 # Start local Grafana, Prometheus, and OTel Collector
 docker-compose -f docker-compose.otel.yaml --profile local up -d
 
-# Start your Temporal worker
-cd src/Onboardings/Onboardings.Workers
-dotnet run --configuration=LocalWorker
+# Start your Temporal SDK Worker
+# (command varies by SDK - ensure metrics are exposed on port 9464)
 
 # Access Grafana at http://localhost:3000
 # Default credentials: admin/admin
@@ -40,9 +39,8 @@ Requires cloud credentials. See [Grafana Cloud Setup](#grafana-cloud-setup) belo
 # Then start the collector
 docker-compose -f docker-compose.otel.yaml --profile cloud up -d
 
-# Start your Temporal worker
-cd src/Onboardings/Onboardings.Workers
-dotnet run --configuration=LocalWorker
+# Start your Temporal SDK Worker
+# (command varies by SDK - ensure metrics are exposed on port 9464)
 ```
 
 ### Option 3: Both Local and Cloud
@@ -54,9 +52,8 @@ Send metrics to both destinations simultaneously:
 # Start everything
 docker-compose -f docker-compose.otel.yaml --profile both up -d
 
-# Start your Temporal worker
-cd src/Onboardings/Onboardings.Workers
-dotnet run --configuration=LocalWorker
+# Start your Temporal SDK Worker
+# (command varies by SDK - ensure metrics are exposed on port 9464)
 
 # Access local Grafana at http://localhost:3000
 ```
@@ -182,7 +179,7 @@ docker-compose -f docker-compose.otel.yaml --profile both down
 
 ### Local Profile
 ```
-Temporal .NET Worker (localhost:9464)
+Temporal SDK Worker (localhost:9464)
          ↓ (scrape every 15s)
 OpenTelemetry Collector (Docker)
          ↓ (batch & forward)
@@ -193,7 +190,7 @@ Grafana (Docker:3000)
 
 ### Cloud Profile
 ```
-Temporal .NET Worker (localhost:9464)
+Temporal SDK Worker (localhost:9464)
          ↓ (scrape every 15s)
 OpenTelemetry Collector (Docker)
          ↓ (batch & forward)
@@ -204,7 +201,7 @@ GrafanaCloud Dashboards
 
 ### Both Profile
 ```
-Temporal .NET Worker (localhost:9464)
+Temporal SDK Worker (localhost:9464)
          ↓ (scrape every 15s)
 OpenTelemetry Collector (Docker)
          ↓ (batch & forward to both)

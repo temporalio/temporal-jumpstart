@@ -18,32 +18,32 @@ Workflow Options configure how a Workflow Execution behaves when started. These 
 ### 2. [Routing](#2-routing)
 - [TaskQueue](#taskqueue)
 
-### 3. [Timeouts](#3-timeouts)
-- [WorkflowExecutionTimeout](#workflowexecutiontimeout)
-- [WorkflowRunTimeout](#workflowruntimeout)
-- [WorkflowTaskTimeout](#workflowtasktimeout)
-
-### 4. [Reliability & Retry](#4-reliability--retry)
-- [RetryOptions](#retryoptions)
-
-### 5. [Scheduling](#5-scheduling)
-- [CronSchedule](#cronschedule)
-- [StartDelay](#startdelay)
-
-### 6. [Observability & Metadata](#6-observability--metadata)
+### 3. [Observability & Metadata](#3-observability--metadata)
 - [Memo](#memo)
 - [SearchAttributes](#searchattributes)
 - [TypedSearchAttributes](#typedsearchattributes)
 - [StaticSummary](#staticsummary)
 - [StaticDetails](#staticdetails)
 
-### 7. [Advanced Features](#7-advanced-features)
+### 4. [Integration](#4-integration)
 - [ContextPropagators](#contextpropagators)
-- [DisableEagerExecution](#disableeagerexecution)
+
+### 5. [Timeouts](#5-timeouts)
+- [WorkflowExecutionTimeout](#workflowexecutiontimeout)
+- [WorkflowRunTimeout](#workflowruntimeout)
+- [WorkflowTaskTimeout](#workflowtasktimeout)
+
+### 6. [Reliability & Retry](#6-reliability--retry)
+- [RetryOptions](#retryoptions)
+
+### 7. [Scheduling](#7-scheduling)
+- [StartDelay](#startdelay)
+
+### 8. [Throughput](#8-advanced-features)
+- [EagerExecution](#eagerexecution)
 
 ### Additional Sections
 - [Quick Reference Table](#quick-reference-table)
-- [Common Patterns](#common-patterns)
 - [SDK-Specific Notes](#sdk-specific-notes)
 - [Additional Resources](#additional-resources)
 - [Summary](#summary)
@@ -67,6 +67,7 @@ Options that uniquely identify and control the lifecycle of Workflow Executions.
     - Easy deduplication of client-side retries
     - Simple lookups in the UI and CLI
     - Natural idempotency for your business processes
+    - Establish Entity relationships across Temporal Namespaces
 - Format: Consider a pattern like `{entity-type}-{entity-id}` or `{process-name}-{unique-key}`
 
 **Default**: Auto-generated UUID (not recommended for production)
@@ -83,11 +84,15 @@ Options that uniquely identify and control the lifecycle of Workflow Executions.
 **Description**: Specifies server behavior when a **completed** Workflow with the same ID exists.
 
 **Options**:
-- `AllowDuplicateFailedOnly` (default): New run allowed only if previous run failed, was canceled, or terminated
-- `AllowDuplicate`: New run allowed regardless of previous run status
+- `AllowDuplicateFailedOnly`: New run allowed only if previous run failed, was canceled, or terminated
+- `AllowDuplicate` _(default)_: New run allowed regardless of previous run status
 - `RejectDuplicate`: New run rejected regardless of previous run status
 
 **Note**: Under no conditions can two Workflows with the same namespace and Workflow ID run simultaneously.
+
+**Best Practice**: Prefer `RejectDuplicate` to avoid corruption caused by duplicating steps accidentally.
+If you have confidence in the idempotency of enclosed Workflow steps, consider `AllowDuplicateFailedOnly` to allow
+for a "do over" of failed processes.
 
 ---
 
@@ -140,10 +145,15 @@ WorkflowExecution execution2 = WorkflowClient.start(workflow2::processOrder, ord
 // Both refer to the SAME running Workflow
 ```
 
-**Use Cases**:
+**`UseExisting` Use Cases**:
 - **Retry safety**: Client code can safely retry start operations without creating duplicates
 - **Process deduplication**: Ensure only one instance of a business process runs (e.g., "process-invoice-INV001")
-- **Coordination**: Multiple services can independently try to start a Workflow, and all get connected to the same instance
+- **Coordination**: Multiple services can independently try to start a Workflow, and all get connected to the same instance.
+
+**BestPractices**:
+Ask whether you want to use `error` control flow to determine how to handle duplicated attempts for the same
+WorkflowID. If you prefer failing explicitly to allow the Caller to log and handle this condition variously,
+use `Fail`. If you want to silently resume the current Execution, prefer `UseExisting`.
 
 **Comparison with WorkflowIdReusePolicy**:
 
@@ -167,170 +177,14 @@ Options that determine where Workflow Tasks are executed.
 - Must match the Task Queue that Workers are polling
 - Use descriptive names that reflect the service or capability: `order-processing`, `email-service`, `payment-workflows`
 - Consider Task Queue routing strategies:
-    - **Service-based**: One Task Queue per microservice
     - **Capability-based**: Task Queues by function (e.g., `high-priority`, `background-jobs`)
     - **Tenant-based**: Separate Task Queues for different customers or environments
-- Avoid generic names like `default` or `main` in production
-
+  
 **Required**: Yes
 
 ---
 
-### 3. Timeouts
-
-Timeout configurations that control Workflow Execution lifecycle boundaries.
-
-> **Important**: In most cases, write _Workflows_ that control their own Lifecycle. 
-> Callers should not control such business rules.
-> Use input and configuration options to make it easy for the Workflow lifecycle to be tested and dynamic.
-
-#### `WorkflowExecutionTimeout`
-
-**Description**: Maximum time for the entire Workflow Execution, including retries and Continue-As-New runs.
-
-**Best Practices**:
-- Set this as a safety net to prevent runaway Workflows
-- Should be significantly longer than your expected Workflow duration
-- Typical values: Days to months for long-running business processes
-- When timeout is reached, the Workflow cannot make progress and is terminated
-
-**Default**: Unlimited (∞)
-
-**Use Case Examples**:
-- Month-long onboarding process: 45 days
-- Annual subscription renewal: 380 days
-- Short-lived orchestration: 24 hours
-
----
-
-#### `WorkflowRunTimeout`
-
-**Description**: Maximum time for a single Workflow Run (does not include retries or Continue-As-New).
-
-**Best Practices**:
-- Use for Workflows that should complete within a bounded time period
-- The timeout applies per run, not across retries
-- Set to a value that accounts for expected activity durations plus overhead
-- Typical values: Hours to days
-
-**Default**: Unlimited (∞), but inherits from `WorkflowExecutionTimeout` if set
-
-**When to Use**:
-- Setting a maximum duration for each attempt of a retryable Workflow
-- Ensuring individual runs don't hang indefinitely
-
----
-
-#### `WorkflowTaskTimeout`
-
-**Description**: Maximum execution time for a single Workflow Task (the unit of Workflow code execution).
-
-**Best Practices**:
-- Default of 10 seconds is usually sufficient
-- Only increase if your Workflow code legitimately takes longer (e.g., extensive local computation)
-- If you're hitting this timeout, consider:
-    - Moving heavy computation to Activities
-    - Reducing complexity in Workflow code
-    - Checking for non-determinism issues
-
-**Default**: 10 seconds
-
-**Maximum**: 120 seconds
-
-**Common Issues**:
-- If hitting this timeout repeatedly, it often indicates non-deterministic code or blocking operations in Workflow
-
----
-
-### 4. Retryability
-
-Options controlling Workflow retry behavior and failure handling.
-
-> **Important**: This is rarely used for production code. 
-> Prefer _Activity_ retry handling instead to avoid idempotency issues downstream.
-
-#### `RetryOptions`
-
-**Description**: Configuration for automatic Workflow retry on failure.
-
-**Best Practices**:
-- Set retry policies for transient failures (e.g., temporary service outages)
-- Configure maximum attempts to prevent infinite retries
-- Use exponential backoff for external service dependencies
-- Consider carefully what failures should be retried vs. returned immediately
-
-**Sub-Options**:
-- `InitialInterval`: Starting retry delay (e.g., 1 second)
-- `BackoffCoefficient`: Multiplier for delay between retries (typically 2.0)
-- `MaximumInterval`: Cap on retry delay (e.g., 1 minute)
-- `MaximumAttempts`: Maximum number of retry attempts (e.g., 10)
-- `NonRetryableErrorTypes`: Error types that should not trigger retry
-
-**Example**:
-```java
-RetryOptions.newBuilder()
-    .setInitialInterval(Duration.ofSeconds(1))
-    .setBackoffCoefficient(2.0)
-    .setMaximumInterval(Duration.ofMinutes(1))
-    .setMaximumAttempts(5)
-    .build()
-```
-
-**Default**: No automatic retries unless explicitly configured
-
----
-
-### 5. Scheduling
-
-Options for controlling when and how often Workflows execute.
-
-#### `CronSchedule`
-
-**Description**: A cron expression that schedules the Workflow to run periodically.
-> **Important**: Use Schedules instead.
-
-**Best Practices**:
-- Use standard cron syntax (5 or 6 fields)
-- Default timezone is UTC unless specified otherwise
-- Cannot be combined with `StartDelay`
-- Each cron execution is a separate Workflow Run
-- The Workflow should be idempotent for the time window
-
-**Example Patterns**:
-- Every minute: `* * * * *`
-- Daily at 2 AM UTC: `0 2 * * *`
-- Every Monday at 9 AM: `0 9 * * MON`
-- First day of month: `0 0 1 * *`
-
-**Use Cases**:
-- Scheduled reports
-- Periodic data synchronization
-- Recurring maintenance tasks
-
-**Note**: For complex scheduling needs, consider implementing scheduling logic within your Workflow using timers.
-
----
-
-#### `StartDelay`
-
-**Description**: Duration to wait before dispatching the first Workflow Task.
-
-**Best Practices**:
-- Useful for scheduled Workflows that should execute in the future
-- Signals sent via Signal-With-Start will bypass the delay
-- Regular Signals sent during the delay period are queued
-- Cannot be combined with `CronSchedule`
-
-**Use Cases**:
-- Scheduled reminders (e.g., send email in 24 hours)
-- Delayed job processing
-- Time-based workflow orchestration
-
-**Example**: Schedule a follow-up email 48 hours after user signup
-
----
-
-### 6. Observability & Metadata
+### 3. Observability & Metadata
 
 Options for storing and searching Workflow metadata.
 
@@ -436,7 +290,8 @@ Payment Method: Credit Card ending in 4242
 
 ---
 
-### 7. Advanced Features
+
+### 4. Integration
 
 Specialized options for advanced use cases.
 
@@ -459,16 +314,152 @@ Specialized options for advanced use cases.
 
 ---
 
-#### `DisableEagerExecution`
+### 5. Timeouts
 
-**Description**: Disables eager Workflow start optimization.
+Timeout configurations that control Workflow Execution lifecycle boundaries.
+
+> **Important**: In most cases, write _Workflows_ that control their own Lifecycle. 
+> Callers should not set or control such business rules.
+> Use input and configuration options to make it easy for the Workflow lifecycle to be tested and dynamic.
+> Setting the TTL _inside_ the Workflow allows the author to support updating the allowed time, as well as take compensating actions
+> in the event of a Workflow exceeding its allowable Open time.
+
+#### `WorkflowExecutionTimeout`
+
+**Description**: Maximum time for the entire Workflow Execution, including retries and Continue-As-New runs.
+
+**Best Practices**:
+- Set this as a safety net to prevent runaway Workflows
+- Should be significantly longer than your expected Workflow duration
+- Typical values: Days to months for long-running business processes
+- When timeout is reached, the Workflow cannot make progress and is terminated
+
+**Default**: Unlimited (∞)
+
+**Use Case Examples**:
+- Month-long onboarding process: 45 days
+- Annual subscription renewal: 380 days
+- Short-lived orchestration: 24 hours
+
+---
+
+#### `WorkflowRunTimeout`
+
+**Description**: Maximum time for a single Workflow Run (does not include retries or Continue-As-New).
+
+**Best Practices**:
+- Use for Workflows that should complete within a bounded time period
+- The timeout applies per _run_, not across retries
+- Set to a value that accounts for expected activity durations plus overhead
+- Typical values: Hours to days
+
+**Default**: Unlimited (∞), but inherits from `WorkflowExecutionTimeout` if set
+
+**When to Use**:
+- Setting a maximum duration for each attempt of a retryable Workflow
+- Ensuring individual runs don't hang indefinitely
+
+---
+
+#### `WorkflowTaskTimeout`
+
+**Description**: Maximum execution time for a single Workflow Task (the unit of Workflow code execution).
+
+**Best Practices**:
+- Default of 10 seconds is usually sufficient
+- Only increase if your Workflow code legitimately takes longer (e.g., extensive local computation or slow DataConverter)
+- If you're hitting this timeout, consider:
+    - Moving heavy computation to Activities
+    - Reducing complexity in Workflow code
+
+**Default**: 10 seconds
+
+**Maximum**: 120 seconds
+
+**Common Issues**:
+- If hitting this timeout repeatedly, it can indicate a slow network, DataConverter, too-small cache value, or overly complex Workflow code. 
+
+---
+
+### 6. Retryability
+
+Options controlling Workflow retry behavior and failure handling.
+
+> **Important**: This is rarely used for production code but is handy in test code.
+> 
+> Prefer _Activity_ retry handling instead to avoid idempotency issues downstream.
+
+#### `RetryOptions`
+
+**Description**: Configuration for automatic Workflow retry on failure.
+
+**Risk**:
+- Idempotency risk. Workflow failures will execute enclosed steps over and over. 
+
+**Best Practices**:
+- Set retry policies for transient failures (e.g., temporary service outages)
+- Configure maximum attempts to prevent infinite retries
+- Use exponential backoff for external service dependencies
+- Consider carefully what failures should be retried vs. returned immediately
+
+**Sub-Options**:
+- `InitialInterval`: Starting retry delay (e.g., 1 second)
+- `BackoffCoefficient`: Multiplier for delay between retries (typically 2.0)
+- `MaximumInterval`: Cap on retry delay (e.g., 1 minute)
+- `MaximumAttempts`: Maximum number of retry attempts (e.g., 10)
+- `NonRetryableErrorTypes`: Error types that should not trigger retry
+
+**Default**: No automatic retries unless explicitly configured
+
+---
+
+### 7. Scheduling
+
+Options for controlling when and how often Workflows execute.
+
+#### `CronSchedule`
+
+**Description**: A cron expression that schedules the Workflow to run periodically.
+> **Important**: Use Schedules instead.
+
+---
+
+#### `StartDelay`
+
+**Description**: Duration to wait before dispatching the first Workflow Task.
+
+**Best Practices**:
+- Consider either starting the Workflow and explicitly setting a timer _inside_ the Workflow, or at least verify the Workflow should still be run when it actually executes.
+- Useful for scheduled Workflows that should execute in the future
+- Signals sent via Signal-With-Start will bypass the delay
+- Regular Signals sent during the delay period are queued
+- Cannot be combined with `CronSchedule`
+
+**Use Cases**:
+- Scheduled reminders (e.g., send email in 24 hours)
+- Delayed job processing
+- Time-based workflow orchestration
+
+**Example**: Schedule a follow-up email 48 hours after user signup
+
+---
+
+### 8. Throughput
+
+#### `EagerExecution`
+
+**Description**: Requests eager Workflow start optimization.
+Some SDKs configure this differently.
+
+Enable Eager Execution to reduce latency and when
+the Worker and the Caller can be co-located.
 
 **Best Practices**:
 - Leave at default (enabled) for best performance
 - Only disable for specific testing or debugging scenarios
 - Eager execution reduces latency when Worker and Client are co-located
 
-**Default**: `false` (eager execution enabled)
+**Default**: `false` 
 
 **Background**: When enabled (default), if the Client requests eager execution and a Worker slot is available, the first Workflow Task is returned inline to the co-located Worker, reducing latency.
 
@@ -493,54 +484,6 @@ Specialized options for advanced use cases.
 | | StaticDetails | Optional | Empty | Multi-line details |
 | **Advanced** | ContextPropagators | Optional | Empty | Tracing, auth |
 | | DisableEagerExecution | No | false | true, false |
-
----
-
-## Common Patterns
-
-### Pattern 1: Production-Ready Configuration
-
-```java
-WorkflowOptions options = WorkflowOptions.newBuilder()
-    // Identity
-    .setWorkflowId("order-processing-" + orderId)
-    .setWorkflowIdConflictPolicy(WorkflowIdConflictPolicy.USE_EXISTING)
-    
-    // Routing
-    .setTaskQueue("order-processing")
-    
-    // Observability
-    .setTypedSearchAttributes(
-        SearchAttributes.newBuilder()
-            .set(CUSTOMER_ID, customerId)
-            .set(ORDER_STATUS, "pending")
-            .build())
-    .setMemo(ImmutableMap.of(
-        "createdBy", userName,
-        "apiVersion", "v2"))
-    
-    .build();
-```
-
-### Pattern 2: Scheduled/Recurring Workflow
-
-```java
-WorkflowOptions options = WorkflowOptions.newBuilder()
-    .setWorkflowId("daily-report-" + LocalDate.now())
-    .setTaskQueue("reporting")
-    .setCronSchedule("0 2 * * *")  // 2 AM UTC daily
-    .build();
-```
-
-### Pattern 3: Delayed Execution
-
-```java
-WorkflowOptions options = WorkflowOptions.newBuilder()
-    .setWorkflowId("reminder-" + userId)
-    .setTaskQueue("notifications")
-    .setStartDelay(Duration.ofHours(24))
-    .build();
-```
 
 ---
 

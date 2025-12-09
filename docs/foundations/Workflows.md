@@ -82,7 +82,7 @@ References:
 Given these distinctions, try to apply this best practice:
 
 > Prefer handling errors that are raised by Activities to decide how to proceed instead of handling Application errors
-> in Starter code.
+> in Caller code.
 
 ### Calculating Elapsed Time
 
@@ -94,7 +94,7 @@ but what if the caller started this Workflow while your system was undergoing ma
 that variable of the elapsed time calculation.
 
 If more precision is required to meet a time threshold (perhaps due to a Service Level Agreement (SLA)), consider adding a `timestamp` to the input argument
-that is required at the "starter" call site. This gives a more accurate and traceable value upon which to base any elapsed time calculations.
+that is required at the "caller" call site. This gives a more accurate and traceable value upon which to base any elapsed time calculations.
 
 Alternately, you can read from the Workflow Execution history via the low-level "DescribeWorkflowExecution" gRPC API to determine when the `WorkflowExecutionStarted`
 event was minted, but keep in mind that now you have to perform an `LocalActivity` in your Workflow to obtain this value.

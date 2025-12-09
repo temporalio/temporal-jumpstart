@@ -50,7 +50,7 @@ Workflow Version strategies fall into two broad categories:
 * **Patched** Versioning: Wraps existing Workflow Definition with the `GetVersion` patch api usage. 
   * This strategy only requires changes to your Workflow Definitions and is covered in depth [here](https://docs.temporal.io/develop/java/versioning#patching).
 * **Routed** Versioning: Deploys versions of the same Workflow Definition in parallel, segregated by either _Workflow Type_ or _Task Queue_.
-  * This strategy requires updates to the "Starters" code that starts new Workflow Executions, using either the new Workflow Type or Task Queue target to run on the latest. 
+  * This strategy requires updates to the "Callers" code that starts new Workflow Executions, using either the new Workflow Type or Task Queue target to run on the latest. 
 
 Which strategy is best for you? _Here are some criteria you can use to decide:_
 
@@ -60,16 +60,16 @@ For example, you are just introducing a new Activity or want to change the durat
 
 **Recommendation:** _Use the Patched Strategy to make changes inside corresponding conditional logic._
 
-#### It is simple to coordinate changes and deployment of both the Starter and Worker services
+#### It is simple to coordinate changes and deployment of both the Caller and Worker services
 
-For example, you have a complex change to roll out and your team is a full-stack crew that manages both the Starters and Workers along with their
+For example, you have a complex change to roll out and your team is a full-stack crew that manages both the Callers and Workers along with their
 deployments.
 
-**Recommendation**: _Use the _Routed_ strategy._ You can update your Starter code to target the new Workflow Definition after you have deployed the new
+**Recommendation**: _Use the _Routed_ strategy._ You can update your Caller code to target the new Workflow Definition after you have deployed the new
 version on a separate TaskQueue or with a distinct WorkflowType name. When older versions are drained off, you can shut those Workers down
 or deregister the old Workflow Types.
 
-#### It is not simple to make changes or coordinate deployment of Starter and Worker services
+#### It is not simple to make changes or coordinate deployment of Caller and Worker services
 
 For example, your frontend team might not be able to ship as frequently but you need to make changes as soon as possible.
 
@@ -200,7 +200,7 @@ execution with input parameters that reflect what work has already been complete
 
 ## Workflow Versioning: Routed Strategy
 
-You can target specific Versions of your Workflow Definition from the `Starter` by either:
+You can target specific Versions of your Workflow Definition from the `Caller` by either:
 1. Specifying the WorkflowType explicitly; eg `MyWorkflowV2`
 2. Designating a TaskQueue for where the new Workflow Version is hosted; eg `TaskQueue: "PaymentsV2"`
 
@@ -218,7 +218,7 @@ _Pros_
 * Allows for discrete changes to each Workflow Type within the Application.
 
 _Cons_
-* Starters must update `Start/Execute` Workflow code to route to the new Implementation, possibly forcing cross-team deployments.
+* Callers must update `Start/Execute` Workflow code to route to the new Implementation, possibly forcing cross-team deployments.
 * Requires custom **SearchAttribute** or metrics to determine when the old Implementations can be deregistered.
 * Changing definition behavior results in a whole new source file, making Git diffs exposing the changes more difficult to spot in PRs.
 
@@ -236,7 +236,7 @@ _Pros_
 
 _Cons_
 
-* Starters must update `Start/Execute` Workflow code to route to the new Implementation, possibly forcing cross-team deployments.
+* Callers must update `Start/Execute` Workflow code to route to the new Implementation, possibly forcing cross-team deployments.
 * Worker count will increase exponentially, increasing complexity in infrastructure deployments and observability.
   * This is further exacerbated if using `TaskQueue` for multi-tenancy purposes.
 
@@ -304,7 +304,7 @@ If you elect to use the `GetVersion` or `patch` SDK APIs, you must choose betwee
 * _Pros_
     * No need to maintain external storage solution for the history produced by `latest` build. Validation can be done via in-memory history produced in unit tests.
 
-> The Patched Versioning strategy is convenient because `Starters` don't need to update their code with version changes or coordinate deployments with services hosting Temporal Workers.
+> The Patched Versioning strategy is convenient because `Callers` don't need to update their code with version changes or coordinate deployments with services hosting Temporal Workers.
 >
 > Note that in all SDKs except Java need to specify a `string` WorkflowType name explicitly in the Worker registration,type decorator or attribute options
 to "pin" the Type name to maintain this implementation swap.

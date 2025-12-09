@@ -6,7 +6,7 @@ The foundational modules for building Temporal applications using "top-down" Tes
 
 Work through these modules in sequence to build a complete understanding:
 
-1. **[Starters](Starters.md)** - How to start workflows from your applications, including client setup and workflow initiation patterns
+1. **[Callers](Callers.md)** - How to start or interact with workflows from your applications, including client setup and workflow initiation patterns
 2. **[Workflows](Workflows.md)** - Building durable workflow logic that orchestrates your business processes
 3. **[Activities](Activities.md)** - Implementing business logic as activities with proper error handling and retries
 4. **[Tests](Tests.md)** - Testing strategies for workflows and activities, including unit and integration tests

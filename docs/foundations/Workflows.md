@@ -270,17 +270,20 @@ Alternately, you can read from the Workflow Execution history via the low-level 
 
 **Essential Best Practices** (apply to every Workflow):
 
-1. **Input Configuration** - Design Workflows with configurable execution options for flexibility across environments
-2. **Structure** - Follow the recommended 5-step structure: state → read handlers → validate → write handlers → behavior
-3. **Exception Strategy** - Understand Transient vs Application Failures; handle errors within Workflows, not in Callers
-4. **Elapsed Time** - Pass timestamps as input arguments for accurate time calculations
+1. **Workflow Input** - Design inputs with configurable execution options and behavioral parameters for flexibility across environments
+2. **Workflow Structure** - Follow the recommended 6-step structure: initialize state → configure read handlers → configure write handlers → validate → load context → perform behavior
+   - Implementation varies by SDK: Functional style (Go, TypeScript) uses a single function; Classical style (Java, .NET, Python, Ruby) distributes across class methods
+3. **Exception & Failure Strategy** - Distinguish business failures from execution failures; capture business failures as state rather than throwing exceptions
+4. **Don't Leak Implementation Details** - Handle Activity errors within Workflows and transform them for Callers
 
-**Key Principles**:
-- Workflows should control their own lifecycle and error handling
-- Don't leak implementation details to Callers
-- Design for testability with configurable durations
+**Common Patterns**:
+
+1. **Establish The Workflow Lifecycle** - Be explicit about time-to-live, handle cancellations, and plan for versioning
+2. **Encapsulate Workflow State** - Use a single `state` object to track all workflow data; expose it via a `getState` Query
+3. **Calculating Elapsed Time** - Pass timestamps as input arguments for accurate time calculations unaffected by Worker availability
 
 **Testing**:
 - Use `TestWorkflowEnvironment` for unit tests
-- Configure shorter timeouts via input arguments for fast tests
-- Test both success and failure paths
+- Configure shorter timeouts via input arguments for fast end-to-end tests
+- Test both success and failure scenarios
+- Verify failed Workflows remain queryable for state

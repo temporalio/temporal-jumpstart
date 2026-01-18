@@ -59,11 +59,37 @@ The Workflow authors must work around this by keeping track of their own allowan
 The Workflow code would be made simpler if the `SubmitPayment` Activity author had only declared truly terminal Errors **NonRetryable**
 so that the Workflow can keep trying to submit the payment per its own rules using Temporal Retry configuration.
 
-### Heartbeat Considerations
+### Activity Heartbeat Considerations
 
-Keep in mind that the SDK batches heartbeats.
-So an activity can heartbeat as frequently as it likes, but the SDK batches consecutive heartbeats and 
-only reports the last one at **80% of heartbeat interval**. 
+#### When To Heartbeat
+
+* **Cancellation**: If your Activities should be cancellable, you should implement the heartbeat so that the Temporal Service
+  can reply to heartbeats that the Workflow is cancelled.
+* **Longevity**: There is no hard rule about this, but if your [StartToCloseTimeout](https://docs.temporal.io/encyclopedia/detecting-activity-failures#start-to-close-timeout) is `>= 2 minutes` you should consider heartbeating.
+  * Heartbeating will prevent your Workflow from being slowed by Activities which have gone offline (crashed or hung) and can get rescheduled on another process sooner.
+* **Checkpointing**: If You need to resume a long-lived Activity from a _checkpoint_ like a **cursor, line number, or db record** you can include the current _checkpoint_ in `HeartbeatDetails` to resume the Activity from previous execution.
+  * **NOTE**: You should not rely on the Heartbeat consistency; eg, Heartbeat requests can _fail_, especially if the process hard-crashed. Hence, **idempotency** remains vital _per resource_ being dealt with in an Activity. 
+
+#### How To Heartbeat
+
+1. You _MUST_ specify a `HeartbeatTimeout` in the **ActivityOptions** for the Worker to send the heartbeats to the Temporal Service.
+   1. If you aren't seeing heartbeats hitting the Temporal Service, check that this option is specified.
+2. You _MUST_ use the `ActivityContext#heartbeat` API for your SDK to ping a heartbeat to the Temporal Service.
+
+Now the question is: How often should I `heartbeat` inside my Activity?
+
+1. It is common to use the `Activity Context` to obtain the _current heartbeat timeout_ to determine this frequency.
+2. It is also common to implement a _background_ heartbeat (eg, in another **Thread** or asyncio **Task**) to allow the primary work to block. 
+   1. Note that background heartbeats should usually handle `cancellation` properly inside the Activity.
+
+#### Throttling
+
+Keep in mind that the SDK batches heartbeats; that is, they are [throttled](https://docs.temporal.io/encyclopedia/detecting-activity-failures#throttling).
+So an activity can heartbeat as frequently as it likes, but the SDK batches consecutive heartbeats and
+only reports the last one at **80% of heartbeat interval**.
+
+1. This keeps costs of heartbeats down in Temporal Cloud. 
+2. You might drop some heartbeats; keep this in mind if you are sending `Heartbeat Details`.
 
 ######  Example
 Let’s say you provide Activity Options with the heartbeat timeout configured at _10 seconds_.

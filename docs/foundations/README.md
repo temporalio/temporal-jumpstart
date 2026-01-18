@@ -20,7 +20,7 @@ The following modules appear based on your application requirements:
 - **[Timers](Timers.md)** - Working with durable timers and delays for scheduling and timeout patterns
 - **[Writes](Writes.md)** - Handling state mutations in workflows with signals and updates
 - **[Reads](Reads.md)** - Querying workflow state without affecting execution
-- **[Messaging](Messaging.md)** - Inter-workflow communication patterns including signals, queries, and child workflows
+- **[Messaging](Messaging.md)** - Message schema considerations for Temporal Applications
 
 ## Operational Modules
 

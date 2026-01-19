@@ -1,22 +1,42 @@
 # Activities
 
-Activities are the "doers" in your Workflow code, the "steps" of a process or the "channel" to
-external operations. Non-determinism is NOT required in Activity code. Activities can be as fast or as slow as the 
-behavior inside needs to complete.
+Activities are the "doers" in your Workflow code, the "steps" of a process, or the "channel" to external operations. Non-determinism is NOT required in Activity code. Activities can be as fast or as slow as the behavior inside needs to complete.
 
-An `Activity` is an implementation of the **Adapter** pattern, so it is common to use existing API clients, DB connections, etc on the
-_inside_ of an Activity while the message contract is enforced for _adapting_ to Temporal orchestration concerns.
+An `Activity` is an implementation of the **Adapter** pattern, so it is common to use existing API clients, DB connections, etc on the _inside_ of an Activity while the message contract is enforced for _adapting_ to Temporal orchestration concerns.
 
-## Activity Types
+## Index of Categories
 
-There are two types of Activities a Workflow may execute:
+### 1. [Activity Types](#1-activity-types)
+- [Understanding Task Execution](#understanding-task-execution)
+- [Choosing Which Type to Use](#choosing-which-type-to-use)
 
-* [Local Activity](https://docs.temporal.io/local-activity)
-* [Activity](https://docs.temporal.io/activities) or "Regular" Activity
+### 2. [Best Practices & Patterns](#2-best-practices--patterns)
+- [Test With The Relevant SDK `ActivityTestEnvironment`](#test-with-the-relevant-sdk-activitytestenvironment)
+- [Inject Dependencies At Startup](#inject-dependencies-at-startup)
+- [Prefer Explicit, Singular Message Signatures](#prefer-explicit-singular-message-signatures)
+- [Maintain Interface Compatibility](#maintain-interface-compatibility)
+- [Enforce Idempotency](#enforce-idempotency)
+- [Implement Activity Coarseness Carefully](#implement-activity-coarseness-carefully)
+- [Configure Activity Options On User Experience Goals](#configure-activity-options-on-user-experience-goals)
+- [Use Non-Retryable Errors](#use-non-retryable-errors)
+- [Determine Timeouts and Cancellations](#determine-timeouts-and-cancellations-inside-activity-code-on-activity-options)
 
-They share their _purpose_ in a Workflow, but it is vital to understand their distinctives.
+### 3. [Regular Activity Special Considerations](#3-regular-activity-special-considerations)
+- [Activity Heartbeat Considerations](#activity-heartbeat-considerations)
+- [Constrain Resource Lifetimes](#constrain-resource-lifetimes)
+- [Asynchronously Completed Activity](#asynchronously-completed-activity)
+- [Activity Rate-Limiting](#let-temporal-service-perform-activity-rate-limiting-when-needed)
 
-### Task Execution
+### Additional Sections
+- [Additional Resources](#additional-resources)
+
+---
+
+## 1. Activity Types
+
+There are two types of Activities a Workflow may execute: [Local Activity](https://docs.temporal.io/local-activity) and [Activity](https://docs.temporal.io/activities) (Regular Activity). They share their _purpose_ in a Workflow, but it is vital to understand their distinctives.
+
+### Understanding Task Execution
 
 **Local Activities** are executed within the current `Workflow Task`, NOT as a discrete, scheduled Activity Task.
 1. _N_ Local Activities might be executed within the Workflow Task Timeout window.
@@ -26,44 +46,21 @@ They share their _purpose_ in a Workflow, but it is vital to understand their di
 
 **"Regular" Activities** are executed due to a discrete, scheduled _Activity Task_ from an Activity Task Queue.
 
-### Choosing Which Type
+### Choosing Which Type to Use
 
-Temporal does not enforce what happens inside any Activity, but here is some guidance for
-choosing one Type over another.
+Temporal does not enforce what happens inside any Activity, but here is some guidance for choosing one Type over another.
 
-#### Choose a Local Activity if...
-
-* The execution is _fast_ (`< 60 seconds`) 
-* It is virtually guaranteed to succeed
-* There _IS NOT_ I/O
-* You will not require heartbeat. **Local Activities do not heartbeat.** 
-* Will not "steal" capacity from other Workflow Task operations like _signal_, _query_, etc.
+| Local Activity | Regular Activity |
+|---|---|
+| Execution is _fast_ (`< 60 seconds`) | Execution _might_ be fast, but _might not_ (`> 60 seconds`) |
+| Virtually guaranteed to succeed | Will fail sometimes |
+| NO I/O | HAS I/O |
+| Do NOT require heartbeat | Will utilize heartbeat |
+| Won't "steal" capacity from Workflow Task operations like _signal_, _query_, etc. | Execution in its own Task Queue |
+| | Will be completed asynchronously |
+| **Common Uses:** Configuration lookups, environment lookups, quick cache lookups, in-memory calculations, random value generation, in-memory validations | **Common Uses:** API calls, database operations, file operations, long-polling tasks, message consumers |
 
 > Local Activities can cut costs on Temporal Cloud, but prefer Activity Type choice on technical requirements - not cost.
-
-**Uses**
-1. Configuration lookups
-2. Environment lookups
-3. Quick cache lookups
-4. In-memory calculations
-5. Random value generation
-6. In-memory validations
-
-#### Choose a Regular Activity if...
-
-* The execution _might_ be fast, but it _might not_ (`> 60 seconds`)
-* It will fail sometimes
-* There _IS_ I/O
-* A _heartbeat_ will be utilized
-* Its execution should be in its own Task Queue
-* The Activity will be completed asynchronously (see below)
-
-**Uses**
-1. API Calls
-2. Database operations
-3. File operations
-4. Long-polling tasks
-5. Message Consumers
 
 #### Gotchas
 
@@ -73,7 +70,9 @@ choosing one Type over another.
       1. This can result in more actions (and greater cost)
 2. **Local Activity** might be retried _even when it did not fail_ due to the Workflow Task it belongs to failing for a _different_ reason. 
 
-## Activity Best Practices & Patterns
+---
+
+## 2. Best Practices & Patterns
 
 Regardless of which Activity Type, these are some best practices to strive for in implementation.
 
@@ -208,7 +207,9 @@ Activities typically have some time-bound operations like:
 Base any connection timeouts or suspension operations on the Activity Options you have passed in to avoid
 having these hold onto Worker slots longer than anticipated.
 
-## Regular Activity Special Considerations
+---
+
+## 3. Regular Activity Special Considerations
 
 These are best practices that apply to facilities _only_ available with Regular Activities.
 
@@ -254,7 +255,7 @@ You should expect that the last heartbeat around _8 seconds_ is the one which ac
 The `details` support for a Heartbeat is useful for long-running activities to resume an operation
 where it was prior to a fault.
 
-Note that data loss is possible with heartbeat details (see [Heartbeat Considerations](heartbeat-considerations) above).
+Note that data loss is possible with heartbeat details. The importance of idempotency cannot be overstated when using heartbeat details.
 
 > It is vital to make _each_ mutation of Application state inside the Activity idempotent.
 
@@ -328,3 +329,15 @@ downstream resources or otherwise control execution rate. This effectively offlo
 to Temporal Service and allows simple rate limiting across _N_ Worker processes.
 
 Note that this value should be the same across all Worker processes connected to this TaskQueue.
+
+---
+
+## Additional Resources
+
+- [Temporal Activities Documentation](https://docs.temporal.io/activities)
+- [Local Activity Documentation](https://docs.temporal.io/local-activity)
+- [Activity Testing Best Practices](https://docs.temporal.io/develop/testing/overview)
+- [Retry Policies and Non-Retryable Errors](https://docs.temporal.io/encyclopedia/retry-policies)
+- [Detecting Activity Failures](https://docs.temporal.io/encyclopedia/detecting-activity-failures)
+- [Activity Execution Patterns](https://docs.temporal.io/activity-execution)
+- [How Many Activities Should I Use in My Temporal Workflow](https://temporal.io/blog/how-many-activities-should-i-use-in-my-temporal-workflow)

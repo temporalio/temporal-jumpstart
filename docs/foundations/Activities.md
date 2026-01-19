@@ -71,6 +71,7 @@ choosing one Type over another.
 * There _IS_ I/O
 * A _heartbeat_ will be utilized
 * Its execution should be in its own Task Queue
+* The Activity will be completed asynchronously (see below)
 
 **Uses**
 1. API Calls
@@ -89,9 +90,18 @@ choosing one Type over another.
 
 ## Activity Best Practices
 
-Regardless of which Activity Type, these are best practices to strive for in implementation.
+Regardless of which Activity Type, these are some best practices to strive for in implementation.
 
-### Prefer explicit, singular message signatures
+### Test With The Relevant SDK `ActivityTestEnvironment`
+
+This "environment" does not connect to or use a real Temporal service, unlike the `WorkflowTestEnvironment`.
+
+Use this test environment when:
+* The Activity implementation interacts with the `ActivityExecutionContext` for timeout values, descriptors, etc. 
+* `Heartbeat` usage should be verified or stubbed
+* `ApplicationFailure`s should be verified 
+
+### Prefer Explicit, Singular Message Signatures
 
 **Activity** should have an explicit "Request" and "Response" argument, just like any other Temporal primitive.
 Be liberal in message propagation and don't couple messages to each other by reusing them across different Activity implementations.
@@ -107,11 +117,12 @@ these signatures for inputs.
 Note that the response payloads _are_ written to history and can impact Workflow determinism in myriad ways
 so be careful about how deployments are done between Activity and Workflow code.
 
-### Idempotency is non-optional
+### Enforce Idempotency
 
-Activities SHOULD be idempotent. Temporal does not _enforce_ this but it is risky not to enforce it yourself.
+Activities SHOULD be idempotent. Temporal does not _enforce_ for you, but it is risky _not_ to enforce it yourself.
 
-> Always code your Activity as if it might be executed 100 times quickly due to retries caused by failure. What could be corrupted in the dependencies you are calling "inside"?
+> Always code your Activity as if it might be executed 100 times quickly due to retries caused by failure. 
+> What could be corrupted in the resources you are using "inside" the Activity?
 
 Protect the resources you are interacting with in your Activities by either implementing an _idempotency key_
 for them to reference or by inspecting the state of the resource (or its presence) before performing mutations against it.
@@ -181,6 +192,8 @@ having these hold onto Worker slots longer than anticipated.
 
 ## Regular Activities
 
+These are best practices that apply to facilities _only_ available with Regular Activities.
+
 ### Activity Heartbeat Considerations
 
 #### When To Heartbeat
@@ -244,8 +257,6 @@ This could be guarded against by either:
 1. Including an "idempotency key" in the POST call,
 2. By doing a read (eg a `GET`) to the resource to verify it does not exist.
 
-
-
 #### Handle Cancellation Explicitly
 
 Activities receive a `cancellation` request when a Workflow has been Cancelled.
@@ -255,3 +266,36 @@ If you have started an operation with an external resource, try to handle this c
 and clean up these calls before exiting.
 
 Each SDK has its own way of retrieving the Cancellation and how to cancel connections or other resources.
+
+### Asynchronously Completed Activity
+
+These are only available with Regular Activities; that is, a discrete `Activity Task` exists for the Activity.
+
+How can an Activity start an operation remotely that will take a long time to complete without
+occupying a [Worker slot](https://docs.temporal.io/develop/worker-performance#slots)?
+
+There are [two primary patterns](https://docs.temporal.io/activity-execution#asynchronous-activity-completion) for handling this scenario documented.
+
+Choose the **Asynchronous Activity** completion approach when:
+* The remote operation intends to periodically heartbeat its status
+* The remote service does not object to Temporal SDK dependencies and Client connection where needed.
+* The `WorkflowID/ActivityID` and/or `TaskToken` details can be forwarded to the remote service.
+* Visibility in the Temporal UI for Async Activity tracking is vital. 
+* Activity slots are precious; it is desired to free them up for other Tasks.
+
+#### Gotchas
+
+Each Activity is **execution** receives a unique `TaskToken`. That means _retries_ each receive
+a new Task Token. If a remote service expects to use the `TaskToken` from an Activity execution that
+**fails**, the `AsyncActivityClient` (or "handle") will fail when using that token as being no longer valid.
+
+Prefer using the combination of `WorkflowID` & `ActivityID` to instruct remote operations how to **complete** or **heartbeat**
+the Activity out-of-band.
+
+### Let Temporal Service Perform Activity Rate-Limiting (when needed)
+
+Configure your Worker with `TaskQueueActivitiesPerSecond` (depending on SDK) to protect
+downstream resources or otherwise control execution rate. This effectively offloads the rate limit
+to Temporal Service and allows simple rate limiting across _N_ Worker processes.
+
+Note that this value should be the same across all Worker processes connected to this TaskQueue.

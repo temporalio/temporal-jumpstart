@@ -99,7 +99,13 @@ This "environment" does not connect to or use a real Temporal service, unlike th
 Use this test environment when:
 * The Activity implementation interacts with the `ActivityExecutionContext` for timeout values, descriptors, etc. 
 * `Heartbeat` usage should be verified or stubbed
-* `ApplicationFailure`s should be verified 
+* `ApplicationFailure`s should be verified
+
+### Inject Dependencies At Startup
+Pass dependencies the Activity implementation requires into the Activity implementation at
+Application startup. This avoids expensive, frequent Dials to remote services.
+
+Be careful about shared state across Activity implementations. How this is guarded depends on the SDK.
 
 ### Prefer Explicit, Singular Message Signatures
 
@@ -284,6 +290,17 @@ If you have started an operation with an external resource, try to handle this c
 and clean up these calls before exiting.
 
 Each SDK has its own way of retrieving the Cancellation and how to cancel connections or other resources.
+
+### Constrain Resource Lifetimes
+
+Use the `StartToCloseTimeout`, available on the `ActivityExecutionContext` to limit resource access lifetimes like
+API Connections, Database transactions, etc. 
+
+Failure to do so can result in Activity "zombies" that stay connected to the resource even after Temporal has
+scheduled a new Activity execution, leading to idempotency risks and unnecessary **slot** reservations.
+
+Temporal does not attempt to kill a thread or task associated with an Activity if it "hangs" or exceeds
+the amount of time allocated by Activity Option timeouts.
 
 ### Asynchronously Completed Activity
 

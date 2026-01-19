@@ -1,26 +1,11 @@
 # Activities
 
-* Introduce our first Activity test using `ActivityTestEnvironment`
-* Discuss the importance of _idempotency_ 
-* Understand Dependency Injection in our Activity implementations
-* Understand `ActivityOptions` 
-  * Discuss the different `Timeouts` available 
-  * Understand `RetryOptions` and gotchas
-  * Understand choosing `NonRetryable` failure type ownership
-
-# Overview
-
 Activities are the "doers" in your Workflow code, the "steps" of a process or the "channel" to
 external operations. Non-determinism is NOT required in Activity code. Activities can be as fast or as slow as the 
 behavior inside needs to complete.
 
-An `Activity` implementation is really an example of the **Adapter** pattern, so it is common to use existing API clients, DB connections, etc on the
+An `Activity` is an implementation of the **Adapter** pattern, so it is common to use existing API clients, DB connections, etc on the
 _inside_ of an Activity while the message contract is enforced for _adapting_ to Temporal orchestration concerns.
-
-
-### Activities Are Not Deterministic
-
-The input arguments _can_ change to Ac
 
 ## Activity Types
 
@@ -114,11 +99,20 @@ Be liberal in message propagation and don't couple messages to each other by reu
 
 ### Maintain Interface Compatibility
 
-Be wary of rolling deployments that might change signatures that break Activity executions between
-Workflow and Activity code.
+Consider how to defensively make changes on both "sides" of Workflow and Activity code; changing signatures
+can introduce issues after deployment.
 
-**Command inputs (requests) to Activity are not written to event history**. That means you can safely change
-these signatures for inputs.
+If your Workers are deployed with [Worker Versioning](https://docs.temporal.io/worker-versioning), interface compatibility between
+Activity and Workflow code is less brittle. [Here are details on Activity behavior with Worker Versioning.](https://docs.temporal.io/worker-versioning#actvity-behavior-across-versions)
+
+Defensive programming with input argument assertions becomes even more important if Workers
+are deployed with rolling deployments since Workflow and Activity versions might be out of step during rollout.
+
+An Activity that is co-located with a Workflow within a 
+moves in tandem with the Workflow so this concern is not as great.
+
+**Command inputs (requests) to Activity are not written to event history**. 
+That means you can safely change these signatures for inputs.
 
 Note that the response payloads _are_ written to history and can impact Workflow determinism in myriad ways
 so be careful about how deployments are done between Activity and Workflow code.

@@ -8,7 +8,113 @@
   * Understand `RetryOptions` and gotchas
   * Understand choosing `NonRetryable` failure type ownership
 
-## Best Practices
+# Overview
+
+Activities are the "doers" in your Workflow code, the "steps" of a process or the "channel" to
+external operations. Non-determinism is NOT required in Activity code. Activities can be as fast or as slow as the 
+behavior inside needs to complete.
+
+An `Activity` implementation is really an example of the **Adapter** pattern, so it is common to use existing API clients, DB connections, etc on the
+_inside_ of an Activity while the message contract is enforced for _adapting_ to Temporal orchestration concerns.
+
+
+### Activities Are Not Deterministic
+
+The input arguments _can_ change to Ac
+
+## Activity Types
+
+There are two types of Activities a Workflow may execute:
+
+* [Local Activity](https://docs.temporal.io/local-activity)
+* [Activity](https://docs.temporal.io/activities) or "Regular" Activity
+
+They share their _purpose_ in a Workflow, but it is vital to understand their distinctives.
+
+### Task Execution
+
+**Local Activities** are executed within the current `Workflow Task`, NOT as a discrete, scheduled Activity Task.
+1. _N_ Local Activities might be executed within the Workflow Task Timeout window.
+2. Local Activities will always execute in the same Process as the current Workflow Task.
+   1. ...But don't assume the host is always guaranteed to be the same. Workflow Workers fail, too.
+3. The SDK Worker manages an internal Task Queue for scheduling these types of Activities. It follows that the durability and availability is subject to Workflow Worker guarantees.
+
+**"Regular" Activities** are executed due to a discrete, scheduled _Activity Task_ from an Activity Task Queue.
+
+### Choosing Which Type
+
+Temporal does not enforce what happens inside any Activity, but here is some guidance for
+choosing one Type over another.
+
+#### Choose a Local Activity if...
+
+* The execution is _fast_ (`< 60 seconds`) 
+* It is virtually guaranteed to succeed
+* There _IS NOT_ I/O
+* You will not require heartbeat. **Local Activities do not heartbeat.** 
+* Will not "steal" capacity from other Workflow Task operations like _signal_, _query_, etc.
+
+> Local Activities can cut costs on Temporal Cloud, but prefer Activity Type choice on technical requirements - not cost.
+
+**Uses**
+1. Configuration lookups
+2. Environment lookups
+3. Quick cache lookups
+4. In-memory calculations
+5. Random value generation
+6. In-memory validations
+
+#### Choose a Regular Activity if...
+
+* The execution _might_ be fast, but it _might not_ (`> 60 seconds`)
+* It will fail sometimes
+* There _IS_ I/O
+* A _heartbeat_ will be utilized
+* Its execution should be in its own Task Queue
+
+**Uses**
+1. API Calls
+2. Database operations
+3. File operations
+4. Long-polling tasks
+5. Message Consumers
+
+#### Gotchas
+
+1. **Local Activity** can actually _slow_ your Workflow down:
+   1. If they fail repeatedly, failure will cause the entire Workflow Task to eventually fail 
+   2. If the _retry interval_ exceeds the Workflow Task Timeout, a Timer is to scheduled for the retry.
+      1. This can result in more actions (and greater cost)
+2. **Local Activity** might be retried _even when it did not fail_ due to the Workflow Task it belongs to failing for a _different_ reason. 
+
+## Activity Best Practices
+
+Regardless of which Activity Type, these are best practices to strive for in implementation.
+
+### Prefer explicit, singular message signatures
+
+**Activity** should have an explicit "Request" and "Response" argument, just like any other Temporal primitive.
+Be liberal in message propagation and don't couple messages to each other by reusing them across different Activity implementations.
+
+### Maintain Interface Compatibility
+
+Be wary of rolling deployments that might change signatures that break Activity executions between
+Workflow and Activity code.
+
+**Command inputs (requests) to Activity are not written to event history**. That means you can safely change
+these signatures for inputs.
+
+Note that the response payloads _are_ written to history and can impact Workflow determinism in myriad ways
+so be careful about how deployments are done between Activity and Workflow code.
+
+### Idempotency is non-optional
+
+Activities SHOULD be idempotent. Temporal does not _enforce_ this but it is risky not to enforce it yourself.
+
+> Always code your Activity as if it might be executed 100 times quickly due to retries caused by failure. What could be corrupted in the dependencies you are calling "inside"?
+
+Protect the resources you are interacting with in your Activities by either implementing an _idempotency key_
+for them to reference or by inspecting the state of the resource (or its presence) before performing mutations against it.
 
 ### Base Activity Options On User Experience Goals
 
@@ -58,6 +164,22 @@ The Workflow authors must work around this by keeping track of their own allowan
 
 The Workflow code would be made simpler if the `SubmitPayment` Activity author had only declared truly terminal Errors **NonRetryable**
 so that the Workflow can keep trying to submit the payment per its own rules using Temporal Retry configuration.
+
+### Determine Timeouts and Cancellations Inside Activity Code On Activity Options
+
+Fetch the `StartToClose` or other timeouts configured for your Activity execution _within_ your Activity by using its related "context".
+Different SDKs expose the Activity Options variously.
+
+#### Constrain Resource Usage
+
+Activities typically have some time-bound operations like:
+1. Explicit `sleep` calls
+2. Implicit connections to external resources like databases or APIs
+
+Base any connection timeouts or suspension operations on the Activity Options you have passed in to avoid
+having these hold onto Worker slots longer than anticipated.
+
+## Regular Activities
 
 ### Activity Heartbeat Considerations
 
@@ -122,19 +244,7 @@ This could be guarded against by either:
 1. Including an "idempotency key" in the POST call,
 2. By doing a read (eg a `GET`) to the resource to verify it does not exist.
 
-### Determine Timeouts and Cancellations Inside Activity Code On Activity Options
 
-Fetch the `StartToClose` or other timeouts configured for your Activity execution _within_ your Activity by using its related "context".
-Different SDKs expose the Activity Options variously.
-
-#### Constrain Resource Usage
-
-Activities typically have some time-bound operations like:
-1. Explicit `sleep` calls
-2. Implicit connections to external resources like databases or APIs
-
-Base any connection timeouts or suspension operations on the Activity Options you have passed in to avoid
-having these hold onto Worker slots longer than anticipated.
 
 #### Handle Cancellation Explicitly
 

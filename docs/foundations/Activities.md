@@ -127,7 +127,25 @@ Activities SHOULD be idempotent. Temporal does not _enforce_ for you, but it is 
 Protect the resources you are interacting with in your Activities by either implementing an _idempotency key_
 for them to reference or by inspecting the state of the resource (or its presence) before performing mutations against it.
 
-### Base Activity Options On User Experience Goals
+### Implement Activity Coarseness Carefully
+
+How much should I do in a single Activity? 
+This [article here](https://temporal.io/blog/how-many-activities-should-i-use-in-my-temporal-workflow) articulates constraints that 
+should guide how coarse or granular your Activity implementations should be.
+
+Here are some key principles to consider:
+
+#### Commands/Writes: Prefer performing at most ONE mutation to a resource in an Activity.
+Failure conditions become unwieldy and idempotency gets trickier to enforce when you mutate
+more than one resource in an Activity. Caller Workflows are forced to respond to too many conditions
+that can make Workflow code hard to understand.
+
+#### Queries/Reads: Accumulate and liberally call resources within reason
+If remote resources are not overly sensitive to chatty retries, consider composing relevant
+data into a single Response message that can save on Activity roundtrips. This is valid _so long as the Activity retains cohesion_.
+
+
+### Configure Activity Options On User Experience Goals
 
 Users care how long something takes to complete, not the number of times it was attempted.
 Therefore, prefer the [ScheduleToClose Timeout](https://docs.temporal.io/encyclopedia/detecting-activity-failures#schedule-to-close-timeout)
@@ -137,35 +155,36 @@ That said, there are good reasons to limit Activity executions based on a counte
 when using a notifications service that is not known to dedupe requests, it is best to 
 limit the `max attempts` of RetryOptions to prevent accidentally deploying a spam server.
 
-### Non-Retryable Error Strategy
+### Use Non-Retryable Errors
 
 Temporal supports declaring specific errors as [Non-Retryable](https://docs.temporal.io/encyclopedia/retry-policies#non-retryable-errors)
 from both the Workflow code and the Activity code. 
 Like the name implies, Errors returned of this `type`(**string**) will not be retried.
+These are especially useful for explicit contracts and increased cognition of possible failure conditions.  
 
-The question is, which "side" of the call should own this rule - the Workflow or the Activity?
+#### Determine The Non-Retryable Declaration Owner - Workflow or the Activity
 
-##### Activity As Owner
+###### Activity As Owner
 If the Activity author is making explicit Errors which she knows will _never_ succeed, prefer
 returning the Error as an ApplicationFailure with a `NonRetryableError`. 
 This makes the Activity the "owner" of this rule so _any_ Workflow that calls this Activity
 will need to handle this Error.
 It also imposes a control flow on calling Workflows though so needs  
 
-###### Example
+**_Example_**
 
 If an Activity internally calls an API that periodically goes down for very long periods, 
 return an ApplicationFailure with a NonRetryable Error of `ERR_UNAVAILABLE`. This allows
 Workflow authors to respond and take a different course of action. 
 
-##### Workflow As Owner
+###### Workflow As Owner
 It is best to allow Workflow authors to have ownership of their own control flow.
 It follows that Errors being returned from an Activity should be allowed to retry according to the _Workflow_ specification. 
 This makes the Workflow the "owner" of the non-retryable rule.
 This keeps the Activity decoupled from a Workflow specification so that it may remain more reusable and keeps a Workflow
 from manually writing looped retry logic to handle errors declared non-retryable by the Activity error result.
 
-###### Example
+**_Example_**
 
 A new Application team wants to author a `MakePayment` Workflow that performs compensation if the `SubmitPayment` Activity, but 
 not until it has failed for 7 days.

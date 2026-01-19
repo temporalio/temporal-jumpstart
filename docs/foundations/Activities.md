@@ -11,7 +11,7 @@ An `Activity` is an implementation of the **Adapter** pattern, so it is common t
 - [Choosing Which Type to Use](#choosing-which-type-to-use)
 
 ### 2. [Best Practices & Patterns](#2-best-practices--patterns)
-- [Test With The Relevant SDK `ActivityTestEnvironment`](#test-with-the-relevant-sdk-activitytestenvironment)
+- [Test With The SDK `ActivityTestEnvironment`](#test-with-the-sdk-activitytestenvironment)
 - [Inject Dependencies At Startup](#inject-dependencies-at-startup)
 - [Prefer Explicit, Singular Message Signatures](#prefer-explicit-singular-message-signatures)
 - [Maintain Interface Compatibility](#maintain-interface-compatibility)
@@ -76,7 +76,7 @@ Temporal does not enforce what happens inside any Activity, but here is some gui
 
 Regardless of which Activity Type, these are some best practices to strive for in implementation.
 
-### Test With The Relevant SDK `ActivityTestEnvironment`
+### Test With The SDK `ActivityTestEnvironment`
 
 This "environment" does not connect to or use a real Temporal service, unlike the `WorkflowTestEnvironment`.
 
@@ -139,14 +139,15 @@ Failure conditions become unwieldy and idempotency gets trickier to enforce when
 more than one resource in an Activity. Caller Workflows are forced to respond to too many conditions
 that can make Workflow code hard to understand.
 
-#### Queries/Reads: Accumulate and liberally call resources within reason
-If remote resources are not overly sensitive to chatty retries, consider composing relevant
-data into a single Response message that can save on Activity roundtrips. This is valid _so long as the Activity retains cohesion_.
+#### Queries/Reads: Accumulate data and liberally call resources within reason
+If remote resources are not overly sensitive to chatty retries, consider accumulating relevant
+data into a single Response message that can save on Activity roundtrips. 
+This is valid _so long as the Activity retains cohesion_.
 
 ### Configure Activity Options On User Experience Goals
 
-Users care how long something takes to complete, not the number of times it was attempted.
-Therefore, prefer the [ScheduleToClose Timeout](https://docs.temporal.io/encyclopedia/detecting-activity-failures#schedule-to-close-timeout)
+Users care about operation latency, not the number of times it was attempted.
+Prefer the [ScheduleToClose Timeout](https://docs.temporal.io/encyclopedia/detecting-activity-failures#schedule-to-close-timeout)
 to limit Activity executions, not RetryOptions.
 
 That said, there are good reasons to limit Activity executions based on a counter. For example,

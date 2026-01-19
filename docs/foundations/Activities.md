@@ -88,7 +88,7 @@ choosing one Type over another.
       1. This can result in more actions (and greater cost)
 2. **Local Activity** might be retried _even when it did not fail_ due to the Workflow Task it belongs to failing for a _different_ reason. 
 
-## Activity Best Practices
+## Activity Best Practices & Patterns
 
 Regardless of which Activity Type, these are some best practices to strive for in implementation.
 
@@ -143,7 +143,6 @@ that can make Workflow code hard to understand.
 #### Queries/Reads: Accumulate and liberally call resources within reason
 If remote resources are not overly sensitive to chatty retries, consider composing relevant
 data into a single Response message that can save on Activity roundtrips. This is valid _so long as the Activity retains cohesion_.
-
 
 ### Configure Activity Options On User Experience Goals
 
@@ -209,7 +208,7 @@ Activities typically have some time-bound operations like:
 Base any connection timeouts or suspension operations on the Activity Options you have passed in to avoid
 having these hold onto Worker slots longer than anticipated.
 
-## Regular Activities
+## Regular Activity Special Considerations
 
 These are best practices that apply to facilities _only_ available with Regular Activities.
 

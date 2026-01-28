@@ -7,27 +7,27 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-        - job_name: 'temporal-dotnet-worker'
+        # Spring Boot apps with Actuator
+        - job_name: 'temporal-worker-spring'
           scrape_interval: 15s
+          metrics_path: '/actuator/prometheus'
           static_configs:
-            # Worker 1 - Primary worker on port 9464
-            - targets: ['host.docker.internal:9464']
+            - targets: ['host.docker.internal:8081']
               labels:
                 service: 'temporal-worker'
                 environment: 'local'
                 worker_instance: 'worker-1'
-            # Worker 2 - Uncomment to add a second worker
-            # - targets: ['host.docker.internal:9465']
-            #   labels:
-            #     service: 'temporal-worker'
-            #     environment: 'local'
-            #     worker_instance: 'worker-2'
-            # Worker 3 - Uncomment to add a third worker
-            # - targets: ['host.docker.internal:9466']
-            #   labels:
-            #     service: 'temporal-worker'
-            #     environment: 'local'
-            #     worker_instance: 'worker-3'
+
+        # Non-Spring apps with standard /metrics endpoint
+        - job_name: 'temporal-worker-standard'
+          scrape_interval: 15s
+          metrics_path: '/metrics'
+          static_configs:
+            - targets: ['host.docker.internal:9464']
+              labels:
+                service: 'temporal-worker'
+                environment: 'local'
+                worker_instance: 'worker-2'   
 
 processors:
   # Add batch processing to reduce network calls
